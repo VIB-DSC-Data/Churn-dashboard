@@ -1,0 +1,137 @@
+---
+title: "CHURN ANALYSIS"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: scroll
+---
+
+```{r setup, include=FALSE}
+pacman::p_load(tidyverse, reshape2, ggthemes, scales, plotly, ggalluvial, flexdashboard, ggnewscale)
+source('ggplot_theme_Publication-2.R')
+df <- read.csv('row1.csv') %>% mutate(DATETIME = as.Date(DATETIME, '%Y-%m-%d'))
+```
+
+Row {.storyboard}
+-----------------------------------------------------------------------
+###
+
+```{r netgain}
+net_gain <- df %>% filter(METRIC == 'netgain_active_user')
+valueBox(prettyNum(net_gain$VALUE_[1], big.mark = ","), caption = 'NET GAIN OF ACTIVE USERS', color = '#7895B2')
+```
+
+###
+
+```{r net_active_retention_rate}
+net_active_retention_rate <- df %>% filter(METRIC == 'netgain_active_retention_rate')
+valueBox(percent(net_active_retention_rate$VALUE_[1], big.mark = ","), caption = 'NET ACTIVE RETENTION RATE', color = '#7895B2')
+```
+
+###
+
+```{r churn_rate}
+churn_rate <- df %>% filter(METRIC == 'monthly_churn_rate')
+valueBox(percent(churn_rate$VALUE_[1], big.mark = ","), caption = 'CHURN RATE', color = '#7895B2')
+```
+
+###
+
+Row
+-----------------------------------------------------------------------
+
+### Online user segmentation by activation
+
+```{r}
+pic21 <- df %>% filter(METRIC %in% c('lost_users','wonback_users','active_new_accquired_user','inactive_new_accquired_user','loyal_active_user','hibernated_user')) %>% 
+                mutate(GROUP = case_when(METRIC %in% c('active_new_accquired_user','wonback_users','loyal_active_user') ~ "Active",
+                                        METRIC %in% c('inactive_new_accquired_user','lost_users','hibernated_user') ~ 'Inactive')) %>%
+                mutate(METRIC = case_when(METRIC == 'active_new_accquired_user' ~ '1. New Active',
+                                            METRIC == 'wonback_users' ~ '2. Wonback',
+                                            METRIC == 'loyal_active_user' ~ '3. Loyal',
+                                            METRIC == 'hibernated_user' ~ '6. Hibernated',
+                                            METRIC == 'lost_users' ~ '5. Lost',
+                                            METRIC == 'inactive_new_accquired_user' ~ '4. Inactive'))
+ggplot() +
+    geom_bar(data = pic21 %>% filter(GROUP == 'Active'),aes(x = format(DATETIME,"%m"), y = VALUE_/10^6, fill = METRIC), color = 'black', position="stack", stat="identity") + 
+    # geom_line(data = df %>% filter(METRIC == 'total_online_users') %>% mutate(DATETIME = as.Date(DATETIME, '%Y-%m-%d')), aes(x = format(DATETIME,"%m"), y = VALUE_/10^6, color = 'Total online users', group  =1)) +
+    # geom_line(data = df %>% filter(METRIC == 'total_online_active') %>% mutate(DATETIME = as.Date(DATETIME, '%Y-%m-%d')), aes(x = format(DATETIME,"%m"), y = VALUE_/10^6, color = 'Total active users', group  =1)) +
+    scale_fill_manual(values=seq_gradient_pal("#CFF5E7", "#0D4C92", "Lab")(seq(0,1,length.out=4))) +
+    new_scale_fill() +
+    geom_bar(data = pic21 %>% filter(GROUP == 'Inactive'),aes(x = format(DATETIME,"%m"), y = -VALUE_/10^6, fill = METRIC), color = 'black', position="stack", stat="identity") + 
+    # geom_line(data = df %>% filter(METRIC == 'total_online_inactive') %>% mutate(DATETIME = as.Date(DATETIME, '%Y-%m-%d')), aes(x = format(DATETIME,"%m"), y = -VALUE_/10^6, color = 'Total inactive users', group  =1)) +
+    scale_fill_manual(values=seq_gradient_pal("#FDEEDC", "#DC5F00", "Lab")(seq(0,1,length.out=4))) +
+    new_scale_fill() +
+    geom_hline(aes(yintercept = 0), color = 'white', size = 2)+
+    scale_y_continuous(labels = abs) + 
+    theme_classic() +
+    theme(legend.title = element_blank()) +
+    labs(x = 'Month', y = '# Customers (millions)')
+```
+
+### Churn rate by month
+
+```{r}
+churn_rate <- df %>% filter(METRIC == 'monthly_churn_rate') %>% mutate(DATETIME = as.Date(DATETIME, '%Y-%m-%d'))
+churn_rate %>% ggplot(aes(x = format(DATETIME,"%m"), y = round(VALUE_ * 100), group = 1)) +
+geom_line()+
+theme_classic() +
+labs(x = 'Month', y = 'Churn rate (%)')
+```
+
+Row
+-----------------------------------------------------------------------
+
+###
+```{r}
+transaction_per_user <- df %>% filter(METRIC == 'transaction_per_user')
+valueBox(prettyNum(transaction_per_user$VALUE_[1], big.mark = ","), caption = 'TRANSACTION PER USER', color = '#7895B2')
+```
+
+###
+```{r}
+transaction_amt_per_user <- df %>% filter(METRIC == 'transaction_amt_per_user')
+valueBox(prettyNum(transaction_amt_per_user$VALUE_[1], big.mark = ","), caption = 'TRANSACTION AMOUNT PER USER', color = '#7895B2')
+```
+
+###
+
+###
+
+Row {data-height=700}
+-----------------------------------------------------------------------
+
+### CHURN FLOW
+```{r}
+pic41 <- read.csv('row4.csv')
+pic41 <- pic41 %>% mutate(TYPE_LV1 = case_when(TYPE_LV1 == 'Active_user' ~ 'Active',
+                                    TYPE_LV1 == 'New_accquired_user' ~ 'New',
+                                    TYPE_LV1 == 'Inactive_user' ~ 'Inactive'),
+                TYPE_LV2 = case_when(TYPE_LV2 == 'loyal_active_user' ~ "Loyal",
+                                    TYPE_LV2 == 'active_new_accquired_user' ~ "New Active",
+                                    TYPE_LV2 == 'hibernated_user' ~ "Hibernated",
+                                    TYPE_LV2 == 'wonback_users' ~ "Wonback",
+                                    TYPE_LV2 == 'inactive_new_accquired_user' ~ "New Inactive",
+                                    TYPE_LV2 == 'lost_users' ~ "Lost"))
+ggplot(pic41 %>% mutate(TYPE_LV2 = case_when(TYPE_LV2 %in% c('New Active','New Inactive') ~ "New", TRUE ~ TYPE_LV2),
+                        TYPE_LV3 = case_when(TYPE_LV3 == 'transactional' ~ 'Transaction', TYPE_LV3 == 'nontransactional' ~ 'Nontransaction')),
+       aes(y = VALUE, axis1 = TYPE_LV2, axis2 = TYPE_LV3)) +
+  geom_alluvium(aes(fill = TYPE_LV2), width = 0) +
+  geom_stratum(width = 1/12, aes(fill = TYPE_LV2), color = "grey") +
+  geom_stratum(width = 1/12, aes(fill = TYPE_LV3), color = "grey") +
+  geom_text(stat = "stratum",
+            aes(label = paste(after_stat(stratum),percent(after_stat(prop), accuracy = .1))), size = 3) +
+  scale_x_discrete(limits = c("TYPE_LV2", "TYPE_LV3"), expand = c(.1, .1)) +
+  scale_fill_brewer(type = "qual", palette = "Dark2") +
+  theme_minimal() +
+  theme(axis.line=element_blank(),
+      axis.text.x=element_blank(),
+      axis.ticks=element_blank(),
+      axis.title.x=element_blank(),
+      axis.title.y=element_blank(),
+      legend.position="none",
+      panel.background=element_blank())
+
+```
+
+###
